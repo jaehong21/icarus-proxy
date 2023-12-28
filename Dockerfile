@@ -21,7 +21,10 @@ ENV TZ="Asia/Seoul"
 # COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # COPY --from=builder /etc/passwd /etc/passwd
 
-COPY --from=builder ["/go/src/app/main", "/"]
+COPY --from=builder ["/go/src/app/main", \
+                    "/go/src/app/config", \
+                    "/go/src/app/.env", \
+                    "/"]
 
 EXPOSE 3000
 CMD ["/main"]

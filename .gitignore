@@ -4,9 +4,11 @@
 
 # secret
 .env
+config
 
 # build
 /tmp
 
 # etc
 docs
+deploy.sh

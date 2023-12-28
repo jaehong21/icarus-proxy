@@ -13,6 +13,16 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+func GetNodes(w http.ResponseWriter, r *http.Request, client *kubernetes.Clientset) {
+	nodes, err := k8s.GetNodes(client)
+	if err != nil {
+		JSON(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	JSON(w, nodes, http.StatusOK)
+}
+
 func GetNamespaces(w http.ResponseWriter, r *http.Request, client *kubernetes.Clientset) {
 	ns, err := k8s.GetNamespaces(client)
 	if err != nil {

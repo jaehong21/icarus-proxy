@@ -14,7 +14,6 @@ import (
 	"github.com/rs/cors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 )
 
 func main() {
@@ -29,6 +28,7 @@ func main() {
 	r.HandleFunc("/", api.HealthCheck).Methods("GET")
 	r.HandleFunc("/api/v1/health", api.HealthCheck).Methods("GET")
 
+	r.Handle("/api/v1/nodes", D(client, api.GetNodes)).Methods("GET")
 	r.Handle("/api/v1/namespaces", D(client, api.GetNamespaces)).Methods("GET")
 	r.Handle("/api/v1/pods/{namespace}", D(client, api.GetPods)).Methods("GET")
 
@@ -54,11 +54,23 @@ func D(client *kubernetes.Clientset, fn func(http.ResponseWriter, *http.Request,
 
 func buildKubeClient() (*kubernetes.Clientset, error) {
 	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+
+	// homedir
+	/*
+		if home := homedir.HomeDir(); home != "" {
+			kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+		} else {
+			kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+		}
+	*/
+
+	// Getting the current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
 	}
+	// Pointing kubeconfig to the file in the current directory
+	kubeconfig = flag.String("kubeconfig", filepath.Join(cwd, "config"), "(optional) absolute path to the kubeconfig file")
 	flag.Parse()
 
 	// use the current context in kubeconfig
