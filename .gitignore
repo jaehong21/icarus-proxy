@@ -1,0 +1,12 @@
+# misc
+.vscode
+.DS_Store
+
+# secret
+.env
+
+# build
+/tmp
+
+# etc
+docs
