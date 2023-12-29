@@ -17,7 +17,8 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load()
+	loadEnv()
+
 	client, err := buildKubeClient()
 	if err != nil {
 		log.Fatal("Failed to load kubeconfig", err.Error())
@@ -25,12 +26,18 @@ func main() {
 
 	r := mux.NewRouter()
 
-	r.HandleFunc("/", api.HealthCheck).Methods("GET")
-	r.HandleFunc("/api/v1/health", api.HealthCheck).Methods("GET")
+	r.HandleFunc("/", api.HealthCheck).Methods(http.MethodGet)
+	r.HandleFunc("/api/v1/health", api.HealthCheck).Methods(http.MethodGet)
 
-	r.Handle("/api/v1/nodes", D(client, api.GetNodes)).Methods("GET")
-	r.Handle("/api/v1/namespaces", D(client, api.GetNamespaces)).Methods("GET")
-	r.Handle("/api/v1/pods/{namespace}", D(client, api.GetPods)).Methods("GET")
+	r.Handle("/api/v1/nodes", D(client, api.GetNodes)).Methods(http.MethodGet)
+	r.Handle("/api/v1/namespaces", D(client, api.GetNamespaces)).Methods(http.MethodGet)
+	r.Handle("/api/v1/namespaces/status/{namespace}", D(client, api.GetNamespaceStatus)).Methods(http.MethodGet)
+	r.Handle("/api/v1/pods/{namespace}", D(client, api.GetPods)).Methods(http.MethodGet)
+
+	r.Handle("/api/v1/namespaces/{namespace}", D(client, api.CreateNamespace)).Methods(http.MethodPost)
+
+	r.HandleFunc("/terraform/cloudflare/{name}", api.CreateCloudflareTerraformResource).Methods(http.MethodPost)
+	r.HandleFunc("/terraform/cloudflare/{name}", api.DeleteCloudflareTerraformResource).Methods(http.MethodDelete)
 
 	server := &http.Server{
 		Addr:         os.Getenv("LISTEN_ADDR"),
@@ -86,4 +93,15 @@ func buildKubeClient() (*kubernetes.Clientset, error) {
 	}
 
 	return client, nil
+}
+
+func loadEnv() {
+	_ = godotenv.Load()
+	checkList := []string{"LISTEN_ADDR", "GIT_ACCESS_TOKEN"}
+
+	for _, v := range checkList {
+		if os.Getenv(v) == "" {
+			log.Fatalf("Environment variable %s is not set\n", v)
+		}
+	}
 }
