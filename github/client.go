@@ -3,7 +3,6 @@ package github
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 
 	"github.com/google/go-github/github"
@@ -35,7 +34,6 @@ func CreateRoute53(dnsName string) error {
 	}
 
 	updatedContent := content + createTerraformResource(dnsName)
-	fmt.Println(updatedContent)
 	opt := &github.RepositoryContentFileOptions{
 		Message: github.String(GIT_CREATE_MESSAGE + dnsName),
 		Content: []byte(updatedContent),
@@ -73,7 +71,6 @@ func DeleteRoute53(resourceName string) error {
 	}
 
 	modifiedContent := deleteTerraformResource(content, resourceName)
-	fmt.Println(modifiedContent)
 	opt := &github.RepositoryContentFileOptions{
 		Message: github.String(GIT_DELETE_MESSAGE + resourceName),
 		Content: []byte(modifiedContent),
