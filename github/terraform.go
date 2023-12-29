@@ -29,7 +29,7 @@ func parseTerraformContent(content string) []string {
 
 // Generates a Terraform resource string for a given name
 func createTerraformResource(name string) string {
-	return ("\n\n" + fmt.Sprintf(`resource "cloudflare_record" "%s" {
+	return ("\n" + fmt.Sprintf(`resource "cloudflare_record" "%s" {
   zone_id = %s
   name    = "%s"
   value   = %s
