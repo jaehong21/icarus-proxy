@@ -12,6 +12,7 @@ import (
 	"github.com/jaehong21/icarus-proxy/api"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -19,9 +20,14 @@ import (
 func main() {
 	loadEnv()
 
-	client, err := buildKubeClient()
+	kubeconfig, err := kubeConfigFlag()
 	if err != nil {
 		log.Fatal("Failed to load kubeconfig", err.Error())
+	}
+
+	client, dynamicClient, err := buildKubeClient(kubeconfig)
+	if err != nil {
+		log.Fatal("Failed to load kubeconfig", err)
 	}
 
 	r := mux.NewRouter()
@@ -29,12 +35,14 @@ func main() {
 	r.HandleFunc("/", api.HealthCheck).Methods(http.MethodGet)
 	r.HandleFunc("/api/v1/health", api.HealthCheck).Methods(http.MethodGet)
 
-	r.Handle("/api/v1/nodes", D(client, api.GetNodes)).Methods(http.MethodGet)
-	r.Handle("/api/v1/namespaces", D(client, api.GetNamespaces)).Methods(http.MethodGet)
-	r.Handle("/api/v1/namespaces/status/{namespace}", D(client, api.GetNamespaceStatus)).Methods(http.MethodGet)
-	r.Handle("/api/v1/pods/{namespace}", D(client, api.GetPods)).Methods(http.MethodGet)
+	r.Handle("/api/v1/nodes", C(client, api.GetNodes)).Methods(http.MethodGet)
+	r.Handle("/api/v1/namespaces", C(client, api.GetNamespaces)).Methods(http.MethodGet)
+	r.Handle("/api/v1/namespaces/status/{namespace}", C(client, api.GetNamespaceStatus)).Methods(http.MethodGet)
+	r.Handle("/api/v1/pods/{namespace}", C(client, api.GetPods)).Methods(http.MethodGet)
 
-	r.Handle("/api/v1/namespaces/{namespace}", D(client, api.CreateNamespace)).Methods(http.MethodPost)
+	r.Handle("/api/v1/namespaces/{namespace}", C(client, api.CreateNamespace)).Methods(http.MethodPost)
+
+	r.Handle("/api/cert-manager/v1/certificates/{namespace}", DC(dynamicClient, client, api.GetCertificates)).Methods(http.MethodGet)
 
 	r.HandleFunc("/terraform/cloudflare/{name}", api.CreateCloudflareTerraformResource).Methods(http.MethodPost)
 	r.HandleFunc("/terraform/cloudflare/{name}", api.DeleteCloudflareTerraformResource).Methods(http.MethodDelete)
@@ -53,46 +61,52 @@ func main() {
 	}
 }
 
-func D(client *kubernetes.Clientset, fn func(http.ResponseWriter, *http.Request, *kubernetes.Clientset)) http.Handler {
+func C(client *kubernetes.Clientset, fn func(http.ResponseWriter, *http.Request, *kubernetes.Clientset)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fn(w, r, client)
 	})
 }
 
-func buildKubeClient() (*kubernetes.Clientset, error) {
-	var kubeconfig *string
+func DC(dynamicClient *dynamic.DynamicClient, client *kubernetes.Clientset, fn func(http.ResponseWriter, *http.Request, *dynamic.DynamicClient, *kubernetes.Clientset)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fn(w, r, dynamicClient, client)
+	})
+}
 
-	// homedir
-	/*
-		if home := homedir.HomeDir(); home != "" {
-			kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-		} else {
-			kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-		}
-	*/
-
+func kubeConfigFlag() (string, error) {
 	// Getting the current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
+
 	// Pointing kubeconfig to the file in the current directory
-	kubeconfig = flag.String("kubeconfig", filepath.Join(cwd, "config"), "(optional) absolute path to the kubeconfig file")
+	kubeconfigFlag := flag.String("kubeconfig", filepath.Join(cwd, "config"), "(optional) absolute path to the kubeconfig file")
 	flag.Parse()
 
+	return *kubeconfigFlag, nil
+}
+
+func buildKubeClient(kubeconfig string) (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
 	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	log.Println("K3s HOST_ADDR:", config.Host)
 
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return client, nil
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return client, nil, err
+	}
+
+	log.Println("KUBECLIENT: K3s HOST_ADDR:", config.Host)
+	log.Println("DYNAMIC_KUBE_CLIENT: K3s HOST_ADDR:", config.Host)
+	return client, dynamicClient, nil
 }
 
 func loadEnv() {
