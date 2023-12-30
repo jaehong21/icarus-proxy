@@ -58,6 +58,49 @@ func GetPods(w http.ResponseWriter, r *http.Request, client *kubernetes.Clientse
 	JSON(w, pods, http.StatusOK)
 }
 
+func CreateNamespace(w http.ResponseWriter, r *http.Request, client *kubernetes.Clientset) {
+	namespaceName := mux.Vars(r)["namespace"]
+
+	nsList, err := k8s.GetNamespaces(client)
+	if err != nil {
+		JSON(w, err, http.StatusInternalServerError)
+		return
+	}
+	if res := namespaceExists(nsList, namespaceName); res {
+		JSON(w, "namespace `"+namespaceName+"` already exists", http.StatusBadRequest)
+		return
+	}
+
+	ns, err := k8s.CreateNamespace(client, namespaceName)
+	if err != nil {
+		JSON(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	JSON(w, ns, http.StatusCreated)
+}
+
+func DeleteNamespace(w http.ResponseWriter, r *http.Request, client *kubernetes.Clientset) {
+	namespaceName := mux.Vars(r)["namespace"]
+
+	nsList, err := k8s.GetNamespaces(client)
+	if err != nil {
+		JSON(w, err, http.StatusInternalServerError)
+		return
+	}
+	if res := namespaceExists(nsList, namespaceName); !res {
+		JSON(w, "Namespace `"+namespaceName+"` Not Exists", http.StatusBadRequest)
+		return
+	}
+
+	if err := k8s.DeleteNamespace(client, namespaceName); err != nil {
+		JSON(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	JSON(w, "success", http.StatusCreated)
+}
+
 func namespaceExists(nsList *v1.NamespaceList, namespaceName string) bool {
 	for _, ns := range nsList.Items {
 		if ns.Name == namespaceName {
