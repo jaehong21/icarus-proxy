@@ -40,12 +40,13 @@ func main() {
 	r.Handle("/api/v1/namespaces/status/{namespace}", C(client, api.GetNamespaceStatus)).Methods(http.MethodGet)
 	r.Handle("/api/v1/pods/{namespace}", C(client, api.GetPods)).Methods(http.MethodGet)
 
-	r.Handle("/api/v1/namespaces/{namespace}", C(client, api.CreateNamespace)).Methods(http.MethodPost)
+	r.Handle("/api/v1/namespaces", C(client, api.CreateNamespace)).Methods(http.MethodPost)
 
 	r.Handle("/api/cert-manager/v1/certificates/{namespace}", DC(dynamicClient, client, api.GetCertificates)).Methods(http.MethodGet)
+	// r.HandleFunc("/api/cert-manager/v1/certificates", api.CreateCertificate).Methods(http.MethodPost)
 
-	r.HandleFunc("/terraform/cloudflare/{name}", api.CreateCloudflareTerraformResource).Methods(http.MethodPost)
-	r.HandleFunc("/terraform/cloudflare/{name}", api.DeleteCloudflareTerraformResource).Methods(http.MethodDelete)
+	r.HandleFunc("/terraform/cloudflare", api.CreateCloudflareTerraformResource).Methods(http.MethodPost)
+	r.HandleFunc("/terraform/cloudflare", api.DeleteCloudflareTerraformResource).Methods(http.MethodDelete)
 
 	server := &http.Server{
 		Addr:         os.Getenv("LISTEN_ADDR"),

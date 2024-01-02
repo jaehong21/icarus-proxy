@@ -1,6 +1,8 @@
 package github
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -9,6 +11,59 @@ const (
 	TF_ZONE_ID   = "var.jaehong21_com_zone_id"
 	TF_DNS_VALUE = "aws_eip.k3s_static_ip[0].public_ip"
 )
+
+func CreateRoute53(dnsName string) error {
+	ctx := context.TODO()
+	client := getGithubClient(ctx)
+
+	content, fileContent, err := readFileInRepo(ctx, client, GIT_INFRA_ROUTE53_PATH)
+	if err != nil {
+		return err
+	}
+
+	names := parseTerraformContent(content)
+	for _, name := range names {
+		if name == dnsName {
+			return errors.New("resource already exists")
+		}
+	}
+
+	updatedContent := content + createTerraformResource(dnsName)
+	if err := updateFileInRepo(ctx, client, fileContent, GIT_INFRA_ROUTE53_PATH, []byte(updatedContent), ROUTE53_CREATE_MESSAGE+dnsName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteRoute53(resourceName string) error {
+	ctx := context.TODO()
+	client := getGithubClient(ctx)
+
+	content, fileContent, err := readFileInRepo(ctx, client, GIT_INFRA_ROUTE53_PATH)
+	if err != nil {
+		return err
+	}
+
+	names := parseTerraformContent(content)
+	found := false
+	for _, name := range names {
+		if name == resourceName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errors.New("resource not found")
+	}
+
+	modifiedContent := deleteTerraformResource(content, resourceName)
+	if err := updateFileInRepo(ctx, client, fileContent, GIT_INFRA_ROUTE53_PATH, []byte(modifiedContent), ROUTE53_DELETE_MESSAGE+resourceName); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func parseTerraformContent(content string) []string {
 	var names []string

@@ -3,13 +3,17 @@ package api
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/jaehong21/icarus-proxy/github"
 )
 
 func CreateCloudflareTerraformResource(w http.ResponseWriter, r *http.Request) {
-	dnsName := mux.Vars(r)["name"]
-	err := github.CreateRoute53(dnsName)
+	var body NameDto
+	if err := ParseJSON(r, &body); err != nil {
+		JSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	err := github.CreateRoute53(body.Name)
 	if err != nil {
 		JSON(w, err, http.StatusInternalServerError)
 		return
@@ -19,8 +23,13 @@ func CreateCloudflareTerraformResource(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteCloudflareTerraformResource(w http.ResponseWriter, r *http.Request) {
-	resourceName := mux.Vars(r)["name"]
-	err := github.DeleteRoute53(resourceName)
+	var body NameDto
+	if err := ParseJSON(r, &body); err != nil {
+		JSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	err := github.DeleteRoute53(body.Name)
 	if err != nil {
 		JSON(w, err, http.StatusInternalServerError)
 		return

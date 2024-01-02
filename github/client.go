@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"errors"
 	"os"
 
 	"github.com/google/go-github/github"
@@ -10,81 +9,17 @@ import (
 )
 
 const (
-	GIT_INFRA_OWNER    = "jaehong21"
-	GIT_INFRA_REPO     = "jaehong21-infra-private"
-	GIT_INFRA_PATH     = "route53.tf"
-	GIT_CREATE_MESSAGE = "🤖 automate: created route53 resource named "
-	GIT_DELETE_MESSAGE = "🤖 automate: deleted route53 resource named "
+	GIT_OWNER      = "jaehong21"
+	GIT_INFRA_REPO = "jaehong21-infra-private"
+
+	GIT_INFRA_ROUTE53_PATH = "route53.tf"
+	ROUTE53_CREATE_MESSAGE = "🤖 automate: created route53 resource named "
+	ROUTE53_DELETE_MESSAGE = "🤖 automate: deleted route53 resource named "
+
+	GIT_OPS_REPO = "icarus-gitops"
+
+	CERT_CREATE_MESSAGE = "🤖 automate: created certificate named "
 )
-
-func CreateRoute53(dnsName string) error {
-	ctx := context.TODO()
-	client := getGithubClient(ctx)
-
-	content, fileContent, err := readTerraformContent(ctx)
-	if err != nil {
-		return err
-	}
-
-	names := parseTerraformContent(content)
-	for _, name := range names {
-		if name == dnsName {
-			return errors.New("resource already exists")
-		}
-	}
-
-	updatedContent := content + createTerraformResource(dnsName)
-	opt := &github.RepositoryContentFileOptions{
-		Message: github.String(GIT_CREATE_MESSAGE + dnsName),
-		Content: []byte(updatedContent),
-		SHA:     fileContent.SHA,
-	}
-
-	_, _, err = client.Repositories.UpdateFile(
-		ctx, GIT_INFRA_OWNER, GIT_INFRA_REPO, GIT_INFRA_PATH, opt)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func DeleteRoute53(resourceName string) error {
-	ctx := context.TODO()
-	client := getGithubClient(ctx)
-
-	content, fileContent, err := readTerraformContent(ctx)
-	if err != nil {
-		return err
-	}
-
-	names := parseTerraformContent(content)
-	found := false
-	for _, name := range names {
-		if name == resourceName {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return errors.New("resource not found")
-	}
-
-	modifiedContent := deleteTerraformResource(content, resourceName)
-	opt := &github.RepositoryContentFileOptions{
-		Message: github.String(GIT_DELETE_MESSAGE + resourceName),
-		Content: []byte(modifiedContent),
-		SHA:     fileContent.SHA,
-	}
-
-	_, _, err = client.Repositories.UpdateFile(
-		ctx, GIT_INFRA_OWNER, GIT_INFRA_REPO, GIT_INFRA_PATH, opt)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 
 func getGithubClient(ctx context.Context) *github.Client {
 	ts := oauth2.StaticTokenSource(
@@ -95,11 +30,46 @@ func getGithubClient(ctx context.Context) *github.Client {
 	return github.NewClient(tc)
 }
 
-func readTerraformContent(ctx context.Context) (string, *github.RepositoryContent, error) {
+func updateFileInRepo(ctx context.Context, client *github.Client, fileContent *github.RepositoryContent, filePath string, updatedContent []byte, commitMessage string) error {
+	opt := &github.RepositoryContentFileOptions{
+		Message: github.String(commitMessage),
+		Content: []byte(updatedContent),
+		SHA:     fileContent.SHA,
+	}
+
+	// NOTE: Update the file in the Terraform repository
+	_, _, err := client.Repositories.UpdateFile(
+		ctx, GIT_OWNER, GIT_INFRA_REPO, filePath, opt)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createNewFileInRepo(filePath string, fileContent []byte, commitMessage string) error {
+	ctx := context.TODO()
 	client := getGithubClient(ctx)
 
+	// Prepare the options for creating a new file
+	opt := &github.RepositoryContentFileOptions{
+		Message: github.String(commitMessage),
+		Content: fileContent,
+	}
+
+	// NOTE: Create the new file in the GitOps repository
+	_, _, err := client.Repositories.CreateFile(
+		ctx, GIT_OWNER, GIT_OPS_REPO, filePath, opt)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func readFileInRepo(ctx context.Context, client *github.Client, path string) (string, *github.RepositoryContent, error) {
 	fileContent, _, _, err := client.Repositories.GetContents(
-		ctx, GIT_INFRA_OWNER, GIT_INFRA_REPO, GIT_INFRA_PATH, nil)
+		ctx, GIT_OWNER, GIT_INFRA_REPO, path, nil)
 	if err != nil {
 		return "", nil, err
 	}
