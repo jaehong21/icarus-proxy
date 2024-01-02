@@ -59,19 +59,23 @@ func GetPods(w http.ResponseWriter, r *http.Request, client *kubernetes.Clientse
 }
 
 func CreateNamespace(w http.ResponseWriter, r *http.Request, client *kubernetes.Clientset) {
-	namespaceName := mux.Vars(r)["namespace"]
+	var body NamespaceDto
+	if err := ParseJSON(r, &body); err != nil {
+		JSON(w, err, http.StatusBadRequest)
+		return
+	}
 
 	nsList, err := k8s.GetNamespaces(client)
 	if err != nil {
 		JSON(w, err, http.StatusInternalServerError)
 		return
 	}
-	if res := namespaceExists(nsList, namespaceName); res {
-		JSON(w, "namespace `"+namespaceName+"` already exists", http.StatusBadRequest)
+	if res := namespaceExists(nsList, body.Namespace); res {
+		JSON(w, "namespace `"+body.Namespace+"` already exists", http.StatusBadRequest)
 		return
 	}
 
-	ns, err := k8s.CreateNamespace(client, namespaceName)
+	ns, err := k8s.CreateNamespace(client, body.Namespace)
 	if err != nil {
 		JSON(w, err, http.StatusInternalServerError)
 		return
@@ -89,7 +93,7 @@ func DeleteNamespace(w http.ResponseWriter, r *http.Request, client *kubernetes.
 		return
 	}
 	if res := namespaceExists(nsList, namespaceName); !res {
-		JSON(w, "Namespace `"+namespaceName+"` Not Exists", http.StatusBadRequest)
+		JSON(w, "namespace `"+namespaceName+"` not exists", http.StatusBadRequest)
 		return
 	}
 
